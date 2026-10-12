@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import {brandSchema,stageOf} from '../lib/model.ts';
+const row=(platform='TikTok')=>({id:crypto.randomUUID(),label:'Video 1',platform,deadline:'',stage:'Dealing',url:'',postedDate:''});
+const brand={brand:'Armani',contact:'',fee:300000,payment:'Unpaid',paymentDue:'',notes:'',sows:[row()]};
+assert.equal(stageOf(brandSchema.parse(brand)),'Dealing');
+assert.throws(()=>brandSchema.parse({...brand,sows:[{...row(),stage:'Posted'}]}));
+const t={...row(),stage:'Posted',url:'https://www.tiktok.com/@keiko/video/123'};
+const ig=row('Instagram Reels');
+assert.equal(stageOf({...brand,sows:[t,ig]}),'Review Brand');
+assert.throws(()=>brandSchema.parse({...brand,sows:[{...ig,stage:'Posted',url:t.url}]}));
+const done={...ig,stage:'Posted',url:'https://www.instagram.com/reel/abc/'};
+const full=brandSchema.parse({...brand,sows:[t,done]});
+assert.equal(stageOf(full),'Posted');assert.equal(full.payment,'Unpaid');assert.notEqual(full.sows[0].url,full.sows[1].url);
+const ten={...brand,sows:Array.from({length:10},(_,i)=>i<3?{...t,id:crypto.randomUUID()}:row())};assert.equal(brandSchema.parse(ten).sows.filter(x=>x.stage==='Posted').length,3);
+assert.throws(()=>brandSchema.parse({...brand,sows:[{...t,url:'javascript:alert(1)'}]}));
+console.log('SOW validation passed: single, mirror, partial 3/10, Posted vs payment, unsafe links.');

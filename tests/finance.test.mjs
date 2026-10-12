@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {brandSchema} from '../lib/model.ts';
+import {stampBrand,paidTotal,paymentStatus,matchMonth,financialTotals,cashInRange,jakartaDate} from '../lib/finance.ts';
+const brand=brandSchema.parse({brand:'Skintific',contact:'',fee:1200000,payment:'Unpaid',paymentDue:'',notes:'',sows:[{id:'sow1',label:'Video 1',platform:'TikTok',deadline:'',stage:'Dealing',url:'',postedDate:''}]});
+const b=stampBrand(brand,null,'2026-09-30T18:00:00Z','Luna');assert.equal(b.confirmedDate,'2026-10-01');assert.equal(b.createdAt,'2026-09-30T18:00:00Z');assert.equal(b.stageHistory.length,1);
+const old={...b,confirmedDate:'2026-09-20',payments:[{id:crypto.randomUUID(),amount:400000,date:'2026-09-22',note:''},{id:crypto.randomUUID(),amount:300000,date:'2026-10-10',note:''}]};assert.equal(paidTotal(old),700000);assert.equal(paymentStatus(old),'Partial');
+const rows=[{id:'b',kind:'brand',data:old,revision:1,updated:''}];assert.deepEqual(financialTotals(rows),{fee:1200000,paid:700000,unpaid:500000});assert.equal(cashInRange(rows,'2026-09','2026-09'),400000);assert.equal(cashInRange(rows,'2026-10','2026-10'),300000);assert.equal(cashInRange(rows,'2026-09','2026-10'),700000);
+assert.equal(matchMonth(old,'2026-09','2026-09','deal'),true);assert.equal(matchMonth(old,'2026-10','2026-10','deal'),false);assert.equal(matchMonth(old,'2026-10','2026-10','input'),true);
+const next=stampBrand({...old,createdAt:'spoof',sows:[{...old.sows[0],stage:'Production'}]},old,'2026-10-11T00:00:00Z','Mochi');assert.equal(next.createdAt,old.createdAt);assert.equal(next.stageHistory.length,2);assert.equal(matchMonth(next,'2026-10','2026-10','stage','Production'),true);
+const unchanged=stampBrand(next,next,'2026-11-01T00:00:00Z','Mochi');assert.equal(unchanged.stageHistory.length,2);assert.equal(unchanged.confirmedDate,'2026-09-20');
+const legacy={...brand,payment:'Paid'};delete legacy.payments;assert.equal(paidTotal(legacy),1200000);const normalized=stampBrand(brand,legacy,'2026-10-11T00:00:00Z','Mochi');assert.equal(normalized.createdAt,'');assert.equal(normalized.legacyPaidAmount,1200000);assert.equal(cashInRange([{...rows[0],data:normalized}],'2026-10','2026-10'),0);
+const removed=stampBrand({...old,payments:[]},old,'2026-10-11T00:00:00Z','Mochi');assert.equal(removed.payment,'Unpaid');assert.throws(()=>brandSchema.parse({...brand,payments:[{id:crypto.randomUUID(),amount:1500000,date:'2026-10-01',note:''}]}));
+console.log('Finance passed: Jakarta dates, month cohorts, cross-month partial payments, immutable input timestamp, stage history, legacy unknown dates, payment removal and overpayment.');

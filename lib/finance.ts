@@ -1,0 +1,11 @@
+import type {Brand,RecordItem} from './model.ts';
+export const jakartaDate=(at=new Date().toISOString())=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Jakarta',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(at));
+export function paidTotal(b:Brand){const known=(b.payments||[]).reduce((n,p)=>n+p.amount,0);const legacy=b.legacyPaidAmount||((b.payments===undefined&&b.payment==='Paid')?b.fee:0);return known+legacy;}
+export function paymentStatus(b:Brand){const paid=paidTotal(b);return paid>=b.fee&&b.fee>0?'Paid':paid>0?'Partial':b.payment==='Invoiced'?'Invoiced':'Unpaid';}
+export function inMonths(date:string,from:string,to:string){if(!from&&!to)return true;if(!date)return false;const month=date.slice(0,7);return (!from||month>=from)&&(!to||month<=to);}
+export function matchMonth(b:Brand,from:string,to:string,basis:string,stage='All'){if(!from&&!to)return true;if(basis==='input')return inMonths(b.createdAt?jakartaDate(b.createdAt):'',from,to);if(basis==='stage')return (b.stageHistory||[]).some(e=>(stage==='All'||e.stage===stage)&&inMonths(jakartaDate(e.at),from,to));return inMonths(b.confirmedDate||'',from,to);}
+export function financialTotals(rows:RecordItem[]){return rows.reduce((a,r)=>{a.fee+=r.data.fee;a.paid+=paidTotal(r.data);a.unpaid+=Math.max(0,r.data.fee-paidTotal(r.data));return a},{fee:0,paid:0,unpaid:0});}
+export function cashInRange(rows:RecordItem[],from:string,to:string){return rows.reduce((n,r)=>n+(r.data.payments||[]).filter((p:any)=>inMonths(p.date,from,to)).reduce((v:number,p:any)=>v+p.amount,0),0);}
+export function stampBrand(incoming:Brand,previous:Brand|null,at:string,source:string){const b:Brand=structuredClone(incoming);b.payments=b.payments||[];b.legacyPaidAmount=b.legacyPaidAmount||0;b.createdAt=previous?.createdAt||(previous?'':at);b.confirmedDate=b.confirmedDate||(!previous?jakartaDate(at):'');if(previous&&!previous.payments?.length&&previous.payment==='Paid'&&!previous.legacyPaidAmount&&!b.payments.length)b.legacyPaidAmount=previous.fee;
+ b.stageHistory=[...(previous?.stageHistory||[])];for(const s of b.sows){const old=previous?.sows.find(x=>x.id===s.id);if(!old||old.stage!==s.stage)b.stageHistory.push({sowId:s.id,stage:s.stage,at,source});}
+ b.payment=paymentStatus(b);return b;}
